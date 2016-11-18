@@ -4,32 +4,46 @@ const http = require('http'),
 
 module.exports = {
   asXML: asXML,
-  asJSON: asJSON,
-  asObject: asObject
+  asJSON: asJSON
 };
 
+/**
+ * Definition of the request callback
+ * @callback requestCallback
+ * @param {string} data - The data returned
+ * @param {string} error - Error message
+ */
+
+/**
+ * Gets the Systembolaget API as XML.
+ *
+ * @callback {requestCallback} callback - The callback that handles the response
+ */
 function asXML(callback) {
   getBolagetXML((xml) => {
     callback(xml);
   });
 }
 
-function asObject(callback) {
-  asXML((xml) => {
-    xml2js.parseString(xml, function(err, result) {
-        callback(result, err);
-    });
-  });
-}
-
+/**
+ * Gets the Systembolaget API as JSON.
+ *
+ * @callback {requestCallback} callback - The callback that handles the response
+ */
 function asJSON(callback) {
   asXML((xml) => {
     xml2js.parseString(xml, function(err, result) {
-        callback(result, err);
+        callback(JSON.stringify(result), err);
     });
   });
 }
 
+/**
+ * Gets the XML available at:
+ * https://www.systembolaget.se/api/assortment/products/xml
+ * @private
+ * @callback {requestCallback} callback - The callback that handles the response
+ */
 function getBolagetXML(callback) {
   https.get('https://www.systembolaget.se/api/assortment/products/xml', (res) => {
     const statusCode = res.statusCode;
@@ -48,20 +62,22 @@ function getBolagetXML(callback) {
 
       // consume response data to free up memory
       res.resume();
-      throw error;
-    } else {
-      res.setEncoding('utf8');
-      let rawData = '';
-      res.on('data', (chunk) => rawData += chunk);
-
-      res.on('end', () => {
-        try {
-          callback(rawData);
-        }  catch (e) {
-          console.log(e.message);
-        }
-      });
+      callback({}, error);
+      return;
     }
+
+    res.setEncoding('utf8');
+    let rawData = '';
+    res.on('data', (chunk) => rawData += chunk);
+
+    res.on('end', () => {
+      try {
+        callback(rawData);
+      }  catch (e) {
+        console.log(e.message);
+        callback({}, e);
+      }
+    });
   }).on('error', (e) => {
     console.log(`Got error: ${e.message}`);
     callback({}, e);
